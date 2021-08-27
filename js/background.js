@@ -26,27 +26,45 @@ function testOutput(){
 };
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-    console.log("A new tabId " + tabId);
-    console.log("A new tabId " + tab.id);
-    console.log(changeInfo);
-    url = new URL(tab.url);
-    console.log("host is " + url.hostname);
-
-    chrome.storage.sync.clear();
-
-    // // 蠢得可以的语法，用变量作为OBJ的key
-    hostnameObj = {};
-    hostnameObj[url.hostname] = true;
-    console.log(hostnameObj);
-    chrome.storage.sync.set(hostnameObj);
-    chrome.storage.sync.get(url.hostname, (items) => {
-        console.log(items);
-    });
+    if (changeInfo.status == "complete") {
+        console.log("A new tabId " + tabId);
+        console.log(changeInfo);
+        url = new URL(tab.url);
+        console.log("host is " + url.hostname);
+         chrome.storage.sync.clear();
+        // // 蠢得可以的语法，用变量作为OBJ的key
+        // hostnameObj = {};
+        // hostnameObj[url.hostname] = true;
+        // console.log(hostnameObj);
+        // chrome.storage.sync.set(hostnameObj);
+        chrome.storage.sync.get(url.hostname, (items) => {
+            if (items === {}) {
+                chrome.browserAction.setIcon({
+                    // 又是一个坑，图标大小不能超了，见文档：
+                    // https://developer.chrome.com/extensions/manifest/icons
+                    path: {
+                        "16": "images/icon-off16.png",
+                        "48": "images/icon-off48.png",
+                        "128": "images/icon-off128.png"
+                    }
+                });
+            }
+            else {
+                chrome.browserAction.setIcon({
+                    path: {
+                        "16": "images/icon-on16.png",
+                        "48": "images/icon-on48.png",
+                        "128": "images/icon-on128.png"
+                    }
+                });
+            }
+        });
+    }
+});
     // if (chrome.storage.sync.get(url.hostname)) {
     //     console.log("storage is true");
     // }
 
-})
 chrome.browserAction.onClicked.addListener((tab) => {
     
   });
