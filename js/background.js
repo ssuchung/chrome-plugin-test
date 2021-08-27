@@ -24,9 +24,35 @@
 function testOutput(){
     console.log("......popup.js OUTPUT....");
 };
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    console.log("A new tabId " + tabId);
+    console.log("A new tabId " + tab.id);
+    console.log(changeInfo);
+    url = new URL(tab.url);
+    console.log("host is " + url.hostname);
+
+    chrome.storage.sync.clear();
+
+    // // 蠢得可以的语法，用变量作为OBJ的key
+    hostnameObj = {};
+    hostnameObj[url.hostname] = true;
+    console.log(hostnameObj);
+    chrome.storage.sync.set(hostnameObj);
+    chrome.storage.sync.get(url.hostname, (items) => {
+        console.log(items);
+    });
+    // if (chrome.storage.sync.get(url.hostname)) {
+    //     console.log("storage is true");
+    // }
+
+})
 chrome.browserAction.onClicked.addListener((tab) => {
-    chrome.tabs.update(tab.id,{url:tab.url});
-    testOutput();
-    testOutput();
+    
   });
+
+//   chrome.tabs.update(tab.id,{url:tab.url});
+
+
+
  
