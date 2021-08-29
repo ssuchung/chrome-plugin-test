@@ -44,7 +44,8 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
         const url = new URL(tab.url);
         console.log("host is " + url.hostname);
         chrome.storage.sync.get(url.hostname, (items) => {
-            if (items === {}) {
+            if (JSON.stringify(items) == '{}') {
+                console.log("turn     off");
                 chrome.browserAction.setIcon({
                     // 又是一个坑，图标大小不能超了，见文档：
                     // https://developer.chrome.com/extensions/manifest/icons
@@ -56,6 +57,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
                 });
             }
             else {
+                console.log("turn    on");
                 chrome.browserAction.setIcon({
                     path: {
                         "16": "images/icon-on16.png",
@@ -80,8 +82,13 @@ function tabUpdater(tab){
 
 chrome.browserAction.onClicked.addListener((tab) => {
     var url = new URL(tab.url);
+    console.log("url click happened" + url.hostname);
     chrome.storage.sync.get(url.hostname, (items) => {
-        if (items === {}) {
+        console.log("items is ");
+        console.log(items);
+        // 垃圾语法，不能通过 items === {} 来判定是否空对象
+        if (JSON.stringify(items) == '{}') {
+            console.log("it is off,turn it on")
             chrome.browserAction.setIcon({
                 path: {
                     "16": "images/icon-on16.png",
@@ -89,18 +96,22 @@ chrome.browserAction.onClicked.addListener((tab) => {
                     "128": "images/icon-on128.png"
                 }
             });
-            const intV = setInterval(tabUpdater(tab), 2000);
-            chrome.storage.sync.set({[url.hostname]: intV});
+            items = setInterval(tabUpdater(tab), 2000);
+            chrome.storage.sync.set({[url.hostname]: items});
+            console.log("interval return value is " + items);
         }
         else {
+            console.log("it is off")
             chrome.browserAction.setIcon({
                 path: {
-                    "16": "images/icon-on16.png",
-                    "48": "images/icon-on48.png",
-                    "128": "images/icon-on128.png"
+                    "16": "images/icon-off16.png",
+                    "48": "images/icon-off48.png",
+                    "128": "images/icon-off128.png"
                 }
             });
-            clearInterval(items);
+            // 返回值 items 是一个对象，要获取值，用 []
+            clearInterval(items[url.hostname]);
+            console.log("it is isisisisis " + items[url.hostname]);
             chrome.storage.sync.remove(url.hostname, () => {
                 console.log("remove successful")
             });
