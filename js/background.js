@@ -88,7 +88,7 @@ chrome.browserAction.onClicked.addListener((tab) => {
         console.log(items);
         // 垃圾语法，不能通过 items === {} 来判定是否空对象
         if (JSON.stringify(items) == '{}') {
-            console.log("it is off,turn it on")
+            console.log("it is off,turn it on");
             chrome.browserAction.setIcon({
                 path: {
                     "16": "images/icon-on16.png",
