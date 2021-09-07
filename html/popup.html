@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+<head>
+    <style>
+        div.oneLine {
+            display: inline-block;
+            width: 200px;
+            padding: 5px;
+            background-color: rgb(230, 230, 230);
+        }
+
+        input[type="number"].num {
+            width: 50px;
+        }
+    </style>
+
+    <script type="text/javascript" src="../js/popup.js"></script>
+
+</head>
+
+<body>
+    <div class="oneLine">
+        <label style="float:left" for="autorefresh">自动刷新</label>
+        <input type="checkbox" id="autorefresh" style="float:right">
+    </div>
+    <div class="oneLine">
+        <label style="float:left" for="timetofresh">刷新间隔（分钟）</label>
+        <input type="number" value=5 class="num" id="timetofresh" style="float:right">
+    </div>
+    <div class="oneLine"><button style="float:right" id="btnQd">确定</button>
+    </div>
+
+</body>
+
+</html>
