@@ -1,4 +1,6 @@
 var refInfoTable = [];
+// {data: [{url: xxx， msTime: 60000}]}
+var savedData = [];
 
 function turnOnIcon() {
     chrome.browserAction.setIcon({
@@ -20,46 +22,72 @@ function turnOffIcon() {
         }
     });
 }
-function RefreshInfo(tab, msTime) {
+function RefreshInfo(tab, msTime = 60000, saved = false) {
     this.tab = tab;
-    this.tabId = tab.id;
     this.url = new URL(tab.url);
     this.hostname = this.url.hostname;
     this.msTime = msTime;
-    this.iterval = 0;
+    this.iterval = null;
+    this.saved = saved;
 }
-function sameRefInfo(refreshInfoA, refreshInfoB) {
-    const idA = refreshInfoA.tabId;
-    const idB = refreshInfoB.tabId;
-    const urlA = refreshInfoA.tab.url;
-    const urlB = refreshInfoB.tab.url;
-    if (idA == idB && urlA == urlB) {
+// function sameRefInfo(refreshInfoA, refreshInfoB) {
+//     const idA = refreshInfoA.tab.id;
+//     const idB = refreshInfoB.tab.id;
+//     const urlA = refreshInfoA.tab.url;
+//     const urlB = refreshInfoB.tab.url;
+//     if (idA == idB && urlA == urlB) {
+//         return true;
+//     }
+//     else {
+//         return false;
+//     }
+// }
+function sameRefInfoId(refreshInfoA, refreshInfoB) {
+    const idA = refreshInfoA.tab.id;
+    const idB = refreshInfoB.tab.id;
+    if (idA == idB) {
         return true;
     }
     else {
         return false;
     }
 }
+function isRefreshing(tab) {
+    console.log("isRefreshing refInfoTable is ");
+    console.log(refInfoTable);
+    for (var i = 0; i < refInfoTable.length; i++) {
+        console.log("tabID: " + tab.id + " && refInfoTable[i].tab.id: " + refInfoTable[i].tab.id);
+        if (tab.id == refInfoTable[i].tab.id) {
+            return true;
+        }
+    }
+    return false;
+}
+function getRefInfo(tab) {
+    for (var i = 0; i < refInfoTable.length; i++) {
+        if (tab.id == refInfoTable[i].tab.id) {
+            return refInfoTable[i];
+        }
+    }
+    return null;
+}
 function refresher(refreshInfo) {
     const tab = refreshInfo.tab;
-    const tabId = refreshInfo.tabId;
+    const tabId = tab.id;
     return () => {
-        chrome.tabs.get(tabId, (t) => {
-            if (t && t.url == tab.url) {
-                console.log("refresher" + tabId);
-                chrome.tabs.update(tabId, { url: tab.url });
-            }
-        });
-    };
+        console.log("refresher id: " + tabId);
+        chrome.tabs.update(tabId, { url: tab.url });
+    }
 }
-function popRefInfoFromRT(refreshInfo) {
-    var t =[];
+function popRefInfoFromRT(refreshInfo, func) {
+    // func 是 sameRefInfo sameRefInfoId 之一
+    var t = [];
     var r;
     for (var i = 0; i < refInfoTable.length; i++) {
-        if (sameRefInfo(refreshInfo, refInfoTable[i])) {
+        if (func(refreshInfo, refInfoTable[i])) {
             r = refInfoTable[i];
         }
-        else{
+        else {
             t.push(refInfoTable[i]);
         }
     }
@@ -67,63 +95,122 @@ function popRefInfoFromRT(refreshInfo) {
     return r;
 }
 function setRefresh(refreshInfo) {
-    const time = refreshInfo.msTime;
-    const old = popRefInfoFromRT(refreshInfo);
-    if (old && old.iterval) {
-        clearInterval(old.iterval);
+    const msTime = refreshInfo.msTime;
+    if(isRefreshing(refreshInfo.tab)){
+        clearRefresh(getRefInfo(refreshInfo.tab));
     }
-    refreshInfo.iterval = setInterval(refresher(refreshInfo), time);
-    refInfoTable.push(refreshInfo);
+    refreshInfo.iterval = setInterval(refresher(refreshInfo), msTime);
+    refInfoTable.push(refreshInfo);   
+    turnOnIcon();
+    saveUrlData(refreshInfo);
 }
-function clearRefresh(refreshInfo){
-    const old = popRefInfoFromRT(refreshInfo);
-    if(old && old.iterval){
-        clearInterval(old.iterval);
+function clearRefresh(refreshInfo) {
+    var r = getRefInfo(refreshInfo.tab);
+    if(r){
+        clearInterval(r.iterval);
+        r.iterval = null;
+        popRefInfoFromRT(r, sameRefInfoId);
+        turnOffIcon();
     }
+    saveUrlData(refreshInfo);
+}
+function saveUrlData(refreshInfo){
+    var urlData = getUrlData(refreshInfo);
+    var msTime = refreshInfo.msTime;
+    if(urlData){
+        if(refreshInfo.saved){
+            urlData.msTime = msTime;
+        }
+        else{
+            popUrlData(refreshInfo);
+        }
+    }
+    else if(refreshInfo.saved){
+        urlData = new UrlData(refreshInfo.tab.url, msTime);
+        savedData.push(urlData);
+    }
+    chrome.storage.sync.set({data: savedData}); 
+}
+function UrlData(url, msTime){
+    this.url = url;
+    this.msTime = msTime;
+}
+function getUrlData(refreshInfo){
+    for(var i = 0; i < savedData.length; i++){
+        if(refreshInfo.tab.url == savedData[i].url){
+            return savedData[i];
+        }
+    }
+    return null;
+}
+function popUrlData(refreshInfo){
+    var t = [];
+    var r;
+    var urlData = new UrlData(refreshInfo.tab.url, refreshInfo.msTime);
+    for (var i = 0; i < savedData.length; i++) {
+        if (savedData[i].url == urlData.url) {
+            r = savedData[i];
+        }
+        else {
+            t.push(savedData[i]);
+        }
+    }
+    savedData = t;
+    return r;
 }
 /********************************************************** */
-
-
+// chrome.storage.sync.set({ rT: refInfoTable });
 
 chrome.windows.onCreated.addListener((win) => {
     chrome.storage.sync.get(null, (items) => {
         if (JSON.stringify(items) != '{}') {
-            refInfoTable = items.rT
+            // items 类似 {data: [{url: xxx， msTime: 60000}]}
+            savedData = items.data;
         }
         else {
-            refInfoTable = [];
+            savedData = [];
         }
+        refInfoTable = [];
+        console.log("savedData is: " + savedData);
+        console.log("refInfoTable is: " + refInfoTable);
     });
 });
-// chrome.windows.onClosed.addListener((win) => {
-//     for (var i = 0; i < refInfoTable.length; i++) {
-//         refInfoTable[i].tab = null;
-//         refInfoTable[i].tabId = null;
-//         refInfoTable[i].iterval = null;
-//         // 保存的 data
-//         // refInfoTable[i].url
-//         // refInfoTable[i].hostname
-//         // refInfoTable[i].msTime
-//     }
-//     chrome.storage.sync.set({ rT: refInfoTable });
-// });
-// chrome.tabs.onUpdate.addListener((tabId, changeInfo, tab) => {
-//     if (changeInfo.status == "complete") {
-
-//     }
-// });
-
-// chrome.storage.onChanged.addListener((changes, areaName) => {
-//     chrome.storage.sync.get(null, (items) => {
-//         if(JSON.stringify(items) != '{}'){
-//             refInfoTable = items.rT
-//         }
-//         else{
-//             refInfoTable = [];
-//         }
-//     });
-// });
-
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if (changeInfo.status == "complete") {
+        console.log("tabId: " + tabId + " updated completed");
+        var refreshInfo = new RefreshInfo(tab);
+        if (isRefreshing(refreshInfo.tab)) {
+            console.log("tabId: " + tabId + " is refreshing");
+            var oldRefInfo = getRefInfo(tab);
+            if (refreshInfo.tab.url != oldRefInfo.tab.url) {
+                clearRefresh(oldRefInfo);
+                var urlData = getUrlData(refreshInfo);
+                if (urlData && urlData.url == refreshInfo.tab.url) {
+                    refreshInfo.msTime = urlData.msTime;
+                    refreshInfo.saved = true;
+                    setRefresh(refreshInfo);
+                }
+            }
+        }
+        else {
+            console.log("tabId: " + tabId + " is NOT refreshing");
+            var urlData = getUrlData(refreshInfo);
+            if (urlData) {
+                refreshInfo.msTime = urlData.msTime;
+                refreshInfo.saved = true;
+                setRefresh(refreshInfo);
+            }
+        }
+        chrome.tabs.get(tabId, (tab) => {
+            if(isRefreshing(tab)){
+                turnOnIcon();
+            }
+            else{
+                turnOffIcon();
+            }
+        });
+    }}
+);
 chrome.runtime.onMessage.addListener(
     (request, sender, sendResponse) => {
         var { action, data } = request;
@@ -137,6 +224,22 @@ chrome.runtime.onMessage.addListener(
         }
     }
 );
+chrome.tabs.onActivated.addListener((activeInfo) =>{
+    var tabId = activeInfo.tabId;
+    chrome.tabs.get(tabId, (tab) => {
+        if(isRefreshing(tab)){
+            turnOnIcon();
+        }
+        else{
+            turnOffIcon();
+        }
+    });
+});
+chrome.tabs.onRemoved.addListener((tabId, info) =>{
+    if(isRefreshing({id: tabId})){
+        clearRefresh(getRefInfo({id: tabId}));
+    }
+});
 
 // chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 //     if (changeInfo.status == "complete") {
@@ -157,44 +260,44 @@ chrome.runtime.onMessage.addListener(
 // });
 
 
-chrome.browserAction.onClicked.addListener((tab) => {
-    var url = new URL(tab.url);
-    console.log("url click happened" + url.hostname);
-    chrome.storage.sync.get(url.hostname, (items) => {
-        console.log("items is ");
-        console.log(items);
-        // 垃圾语法，不能通过 items === {} 来判定是否空对象
-        if (JSON.stringify(items) == '{}') {
-            console.log("it is off,turn it on");
-            chrome.browserAction.setIcon({
-                path: {
-                    "16": "images/icon-on16.png",
-                    "48": "images/icon-on48.png",
-                    "128": "images/icon-on128.png"
-                }
-            });
-            items = setInterval(tabUpdater(tab), 2000);
-            chrome.storage.sync.set({ [url.hostname]: items });
-            console.log("interval return value is " + items);
-        }
-        else {
-            console.log("it is off")
-            chrome.browserAction.setIcon({
-                path: {
-                    "16": "images/icon-off16.png",
-                    "48": "images/icon-off48.png",
-                    "128": "images/icon-off128.png"
-                }
-            });
-            // 返回值 items 是一个对象，要获取值，用 []
-            clearInterval(items[url.hostname]);
-            console.log("it is isisisisis " + items[url.hostname]);
-            chrome.storage.sync.remove(url.hostname, () => {
-                console.log("remove successful")
-            });
-        }
-    });
-});
+// chrome.browserAction.onClicked.addListener((tab) => {
+//     var url = new URL(tab.url);
+//     console.log("url click happened" + url.hostname);
+//     chrome.storage.sync.get(url.hostname, (items) => {
+//         console.log("items is ");
+//         console.log(items);
+//         // 垃圾语法，不能通过 items === {} 来判定是否空对象
+//         if (JSON.stringify(items) == '{}') {
+//             console.log("it is off,turn it on");
+//             chrome.browserAction.setIcon({
+//                 path: {
+//                     "16": "images/icon-on16.png",
+//                     "48": "images/icon-on48.png",
+//                     "128": "images/icon-on128.png"
+//                 }
+//             });
+//             items = setInterval(tabUpdater(tab), 2000);
+//             chrome.storage.sync.set({ [url.hostname]: items });
+//             console.log("interval return value is " + items);
+//         }
+//         else {
+//             console.log("it is off")
+//             chrome.browserAction.setIcon({
+//                 path: {
+//                     "16": "images/icon-off16.png",
+//                     "48": "images/icon-off48.png",
+//                     "128": "images/icon-off128.png"
+//                 }
+//             });
+//             // 返回值 items 是一个对象，要获取值，用 []
+//             clearInterval(items[url.hostname]);
+//             console.log("it is isisisisis " + items[url.hostname]);
+//             chrome.storage.sync.remove(url.hostname, () => {
+//                 console.log("remove successful")
+//             });
+//         }
+//     });
+// });
 
 
 
@@ -234,19 +337,19 @@ chrome.browserAction.onClicked.addListener((tab) => {
 //     });
 // });
 
-function getCurrentTab(callback) {
-    var t;
-    chrome.tabs.query({ active: true, currentWindow: true },
-        (tabs) => {
-            console.log(tabs[0]);
-            console.log('over');
-            if (callback && tabs && tabs[0]) {
-                callback(tabs[0]);
-            }
-            t = tabs[0];
-        });
-    return t;
-}
+// function getCurrentTab(callback) {
+//     var t;
+//     chrome.tabs.query({ active: true, currentWindow: true },
+//         (tabs) => {
+//             console.log(tabs[0]);
+//             console.log('over');
+//             if (callback && tabs && tabs[0]) {
+//                 callback(tabs[0]);
+//             }
+//             t = tabs[0];
+//         });
+//     return t;
+// }
 
 
 //   chrome.tabs.update(tab.id,{url:tab.url});
