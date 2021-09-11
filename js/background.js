@@ -285,6 +285,6 @@ chrome.tabs.onRemoved.addListener((tabId, info) => {
 // k = "something";
 // obj[k] = true;
 // obj is {"something": true}
-// 或者这样，这个中括号就尼玛莫名奇妙
+// 或者这样，这个中括号就尼玛莫名其妙
 // obj = {[k]: true};
 // 哪怕从 Lisp 里面抄个反引号（quote）呢
